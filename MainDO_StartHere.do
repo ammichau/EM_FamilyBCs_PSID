@@ -10,6 +10,7 @@ set more off
 *Be sure there is a directory "AddedWorker" with subdirectories CPS and PSID
 cd "C:\Users\amichau9\Dropbox\DemogBCtrends\Data"
 
+global HOME_dir "C:\Users\amichau9\Dropbox\DemogBCtrends\Data"
 global PSID_dir "C:\Users\amichau9\Dropbox\DemogBCtrends\Data"
 global CPS_dir "C:\Users\amichau9\Dropbox\DemogBCtrends\Data"
 global figOUT_dir "Figures"

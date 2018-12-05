@@ -78,6 +78,10 @@ collapse (firstnm) hh_x11102 hh_SEO-Male, by(MPairNum wave)
 save $InputDTAs_dir\MarriedData.dta, replace
 
 
+*-------------------------------------------------------------------------------------------------
+* Transitions and stationary distributions:
+*	-Although, we will likely use stationary dist. from CPS
+***************************************************************************************************************
 
 ***************************************************************************************************************
 * Construct vector for transistion matrix:
@@ -88,23 +92,19 @@ save $InputDTAs_dir\MarriedData.dta, replace
 *		- 4: single (divorced/widowed/disabled, includes extra income still)
 ***************************************************************************************************************
 
+forvalues c=0/1 {
+cd $HOME_dir
+use $InputDTAs_dir\MarriedData.dta, clear
+
+drop if (wave>1997 | wave<1974)
 drop if w_x11101ll==.
 xtset w_x11101ll wave
 
-*Check out with all U- not good
-{
-/*
-gen h_displ=(h_AnyU==1 & L.h_AnyU==0)
-gen h_Fdispl = F.h_displ
-gen h_recvr5=((L.h_AnyU==1 | L2.h_AnyU | L3.h_AnyU==1 | L4.h_AnyU | L5.h_AnyU) & h_AnyU==0)
-gen h_recvr4=((L.h_AnyU==1 | L2.h_AnyU | L3.h_AnyU==1 | L4.h_AnyU ) & h_AnyU==0)
-gen h_recvr3=((L.h_AnyU==1 | L2.h_AnyU | L3.h_AnyU==1 ) & h_AnyU==0)
-gen h_recvr2=((L.h_AnyU==1 | L2.h_AnyU ) & h_AnyU==0)
-gen h_recvr1=((L.h_AnyU==1 ) & h_AnyU==0)
-*/
-}
-
-
+	local cc=`c'
+    cd $HOME_dir/$tabOUT_dir/Col_`cc'
+	
+	drop if w_Col~=`c'
+	
 *Check out with just inv U
 	gen h_invU=(h_AnyU==1 & h_Quit~=1)
 	gen h_FinvU = F.h_invU
@@ -116,77 +116,147 @@ gen h_recvr1=((L.h_AnyU==1 ) & h_AnyU==0)
 	gen h_irecvr2=((L.h_invU==1 | L2.h_invU ) & h_CurEmp==1)
 	gen h_irecvr1=((L.h_invU==1 ) & h_CurEmp==1)
 
-gen h_state = 0 if w_nevermarried==1
-	replace h_state = 1 if w_married==1 & h_CurEmp==1 & h_irecvr5==0
-	replace h_state = 2 if w_married==1 & h_AnyU==1
-	replace h_state = 3 if w_married==1 & h_CurEmp==1 & h_irecvr5==1
-	replace h_state = 4 if (w_widow==1 | w_divorced==1 | h_CurDisable==1)
+*Create State vector
+	*gen h_state = 0 if w_nevermarried==1 (too few of these)	
+		gen h_state = 1 if w_married==1 & h_CurEmp==1 & h_irecvr5==0
+		replace h_state = 3 if w_married==1 & h_CurEmp==1 & h_irecvr5==1
+		replace h_state = 2 if w_married==1 & h_AnyU==1
+		replace h_state = 4 if (w_widow==1 | w_divorced==1 | h_CurDisable==1)
 
-*Transition matrix, by age
+* 1) Transition matrix, by age
 	gen h_Fstate = F.h_state
 	
-	svyset [pweight=w_wpts]
+svyset w_x11101ll [pw=w_wpts]	
 	estpost svy: tab h_state h_Fstate if (w_ageD1==1), row
-		esttab  using $tabOUT_dir\Age1_Hmat.csv, b(4) nostar unstack mtitle(`e(colvar)') plain replace
+		esttab  using "Age1_Hmat.csv", b(4) nostar not noobs unstack mtitle(`e(colvar)') plain replace
 	estpost svy: tab h_state h_Fstate if (w_ageD2==1), row
-		esttab  using $tabOUT_dir\Age2_Hmat.csv, b(4) nostar unstack mtitle(`e(colvar)') plain replace
+		esttab  using "Age2_Hmat.csv", b(4) nostar not noobs unstack mtitle(`e(colvar)') plain replace
 	estpost svy: tab h_state h_Fstate if (w_ageD3==1), row
-		esttab  using $tabOUT_dir\Age3_Hmat.csv, b(4) nostar unstack mtitle(`e(colvar)') plain replace
+		esttab  using "Age3_Hmat.csv", b(4) nostar not noobs unstack mtitle(`e(colvar)') plain replace
 	estpost svy: tab h_state h_Fstate if (w_ageD4==1), row
-		esttab  using $tabOUT_dir\Age4_Hmat.csv, b(4) nostar unstack mtitle(`e(colvar)') plain replace
+		esttab  using "Age4_Hmat.csv", b(4) nostar not noobs unstack mtitle(`e(colvar)') plain replace
 		
-*U probability in the 5 years following inv U, by age
+* 2) U probability in the 5 years following inv U, by age
 
-			
+	forvalues a=1/4 {
+		forvalues d= 1/6 {
+		svy: mean h_FinvU if w_ageD`a'==1 & h_irecvr`d'==1		
+		mat hz = e(b) 
+		putexcel set "InvUHaz_age`a'.xls", sheet(InvUHaz) modify
+		putexcel A`d' = `d', nformat(number_d2)
+		putexcel B`d' = matrix(hz), nformat(number_d2) 
+	}		
+	}
 
-*3) Stationary dist
-svyset x11101ll [pw=wpts]
+* 3) Stationary dist
+svyset w_x11101ll [pw=w_wpts]
 	
-putexcel set $OUT_dir\Hdist4DW, modify
-	putexcel A1 = ("Age group") B1 = ("0") C1 = ("moderate") D1 = ("severe")  ///
-	A2= ("Age>29 & Age<46") A3 = ("Age>45 & Age<56") A4 = ("Age>55 & Age<61") A5 = ("Age>60 & Age<66") 
- 	
-	svy: tabulate WlimitLP  if (Age>29 & Age<46 & WlimitLP<3), format(%11.3g) percent	
-	matrix b = e(b)	
-	putexcel B2 = matrix(b) 	
+*husband's state (but will really be using CPS)
+drop h_state
+	gen h_state = 0 if w_nevermarried==1
+		replace h_state = 1 if w_married==1 & h_CurEmp==1 
+		replace h_state = 2 if w_married==1 & h_AnyU==1
+		replace h_state = 3 if (w_widow==1 | w_divorced==1 | h_CurDisable==1)
 	
-	svy: tabulate WlimitLP  if (ageD2==1 & WlimitLP<3), format(%11.3g) percent	
-	matrix b = e(b)	
-	putexcel B3 = matrix(b) 	
-	
-	svy: tabulate WlimitLP  if (ageD3==1 & WlimitLP<3), format(%11.3g) percent	
-	matrix b = e(b)	
-	putexcel B4 = matrix(b) 	
-	
-	svy: tabulate WlimitLP  if (ageD4==1 & WlimitLP<3), format(%11.3g) percent	
-	matrix b = e(b)	
-	putexcel B5 = matrix(b) 		
+putexcel set "HstateDist", modify
+	putexcel A1 = ("Age group") B1 = ("nevermarried") C1 = ("employed") D1 = ("invU") E1 = ("divorce/widow/disable") ///
+	A2= ("Age>17 & Age<26") A3 = ("Age>25 & Age<40") A4 = ("Age>39 & Age<55") A5 = ("Age>54 & Age<65") 
 
-****************************************************************************************************
-** NOT IN USE ** NOT IN USE ** NOT IN USE ** NOT IN USE ** NOT IN USE ** NOT IN USE ** NOT IN USE **	
-****************************************************************************************************
+forvalues a=1/4 {
+	local aa = `a'+1	
+		svy: tabulate h_state  if (w_ageD`a'==1), format(%11.3g) percent	
+		matrix b = e(b)	
+		putexcel B`aa' = matrix(b) 	
+}	
+	
+*Age
+putexcel set "HWageDist", modify
+	putexcel B1 = ("Husband Age") B2 = ("Age>17 & Age<26") C2 = ("Age>25 & Age<40") D2 = ("Age>39 & Age<55") E2 = ("Age>54 & Age<65") ///
+	A1= ("Wife Age") A3=("Age>17 & Age<26") A4 = ("Age>25 & Age<40") A5 = ("Age>39 & Age<55") A6 = ("Age>54 & Age<65") 
+forvalues a=1/4 {
+	local aa = `a'+2		
+		svy: tabulate h_AgeBin if w_AgeBin==`a', format(%11.3g) percent	
+		matrix b = e(b)	
+		putexcel B`aa' = matrix(b) 	
+	}
+	
+}	
+
+
+
 *-------------------------------------------------------------------------------------------------
-* Coding Chunk: Markov transitions
-*	These are the raw markov transitions for each age group. They do not include the effect of occupation
-*-------------------------------------------------------------------------------------------------	
-*Short detour to calc summary statistics of the transistion matrix
-*svyset [pweight=wpts]
-*estpost svy: tab lWlim WlimitLPvAM if (Age>21 & Age<46 & lWlim~=3), row
-*	esttab  using "Age1_Hmat.csv", b(4) nostar unstack mtitle(`e(colvar)') plain replace
-*estpost svy: tab lWlim WlimitLPvAM if (Age>45 & Age<56 & lWlim~=3), row
-*	esttab  using "Age2_Hmat.csv", b(4) nostar unstack mtitle(`e(colvar)') plain replace
-*estpost svy: tab lWlim WlimitLPvAM if (Age>55 & Age<61 & lWlim~=3), row
-*	esttab  using "Age3_Hmat.csv", b(4) nostar unstack mtitle(`e(colvar)') plain replace
-*estpost svy: tab lWlim WlimitLPvAM if (Age>60 & Age<66 & lWlim~=3), row
-*	esttab  using "Age4_Hmat.csv", b(4) nostar unstack mtitle(`e(colvar)') plain replace
-*estpost svy: tab lWlim dead if (Age>65 & lWlim~=3), row
-*	esttab  using "Old_Deathmat.csv", b(4) nostar unstack mtitle(`e(colvar)') plain replace
-	
-*svy: mean Yrs2Death  if Age==65 & WlimitLPvAM==1 & Yrs2Death<50
-*svy: mean Yrs2Death  if Age==65 & WlimitLPvAM==2 & Yrs2Death<50
-*svy: mean Yrs2Death  if Age==65 & WlimitLPvAM==0 & Yrs2Death<50
+***************************************************************************************************************
+* Wage process estimation
+*		- Life-cycle profile by WIFE age: w_ageD
+*		- Individual fixed effect: h_alpha; save for joint distribution w/ wife
+*		- wage scar: for 10 years after; will fit decay later
+*		- Save residual and estimate AR(1)
+*		- Mean college/non-college levels
+***************************************************************************************************************
 
-*************************************************************************************************	
+forvalues c=0/1 {
+
+cd $HOME_dir
+use $InputDTAs_dir\MarriedData.dta, clear
+
+drop if (wave>1997 | wave<1974)
+drop if w_x11101ll==.
+xtset w_x11101ll wave
+
+	local cc=`c'
+    cd $HOME_dir/$tabOUT_dir/Col_`cc'
+	
+	drop if w_Col~=`c'
+
+gen h_invU_L0=(h_AnyU==1 & h_Quit~=1)
+
+forvalues el=1/5 {
+	gen h_invU_L`el'=(L`el'.h_AnyU==1 & L`el'.h_Quit~=1)
+}
+
+gen ln_hLabInc = ln(h_LabInc)
+
+*Main regression
+xtreg  ln_hLabInc w_ageD2 w_ageD3 w_ageD4 h_invU_L*, fe
+	putexcel set "h_LabIncCoef.xls", sheet("regress results")
+	predict h_LabIncFE, u
+	predict h_LabIncEPS, residual
+
+*FE distribution
+putexcel set "h_LabIncFE", modify
+	putexcel A2 = ("mean") A3 = ("stdev") A4 = ("skew") A5 = ("kurtosis")
+	sum h_LabIncFE, det
+		scalar b1 = r(mean)
+		scalar b2 = r(Var)
+		scalar b3 = r(skewness)
+		scalar b4 = r(kurtosis)
+	forvalues b=1/4 {		
+		local bb = `b'+1
+		putexcel B`bb' = matrix(b`b') 	
+	}
+
+*Z process
+	reg h_LabIncEPS L.h_LabIncEPS
+		mat b1 = e(b) 
+		scalar rho = b[1,1] 
+	predict h_LabIncAReps, residual
+		sum h_LabIncAReps, det
+		scalar b2 = r(Var)
+putexcel set "h_LabIncZ", modify
+	putexcel A2 = ("rho") A3 = ("stdev of eps") 
+	putexcel B2 = matrix(rho) 
+	putexcel B3 = matrix(b2)
+	
+}
+
+
+
+
+
+
+
+
+
 
 
 
