@@ -18,8 +18,10 @@ Set-Up files. Load Mdta and clean
 ---------------------------------
 *DemographicVars.do- generates demographic variables including married pairings
 	+Generates InputDTAs\Demographics.dta
+	
 *jobloss.do- identifies employer separations and job history stats
 	+Generates InputDTAs\jobloss.dta
+	
 *OccHist.do- calculates the occupational and industry histories of workers including longest job
 	+Generates InputDTAs\occhist.dta & InputDTAs\occHist2000.dta
 
