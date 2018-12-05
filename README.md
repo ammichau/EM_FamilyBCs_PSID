@@ -2,9 +2,9 @@
 
 PSID Data Replication Files  
 
-v.12-5-2018; @A. Michaud  w/ K.Ellieroth
+v.12-5-2018; @A. Michaud  
 
-OG:v.6-5-2017; @A. Michaud  w/ K.Ellieroth
+OG:v.6-5-2017; @A. Michaud  
 
 
 These files perform the empirical analysis on PSID data.
